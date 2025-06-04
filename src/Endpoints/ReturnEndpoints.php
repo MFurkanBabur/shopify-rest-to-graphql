@@ -47,12 +47,10 @@ class ReturnEndpoints
               status
               totalQuantity
         
-              # --- İadeye bağlı Sipariş (Order) bilgisi ---
               order {
                 id
               }
         
-              # --- ReturnLineItemType içindeki mevcut alanlar (2025-01) ---
               returnLineItems(first: 50) {
                 edges {
                   node {
@@ -66,14 +64,12 @@ class ReturnEndpoints
                 }
               }
         
-              # --- RefundConnection (2025-01’da Refund içinde amountSet YERİNE totalRefundedSet var) ---
               refunds(first: 50) {
                 edges {
                   node {
                     id
                     createdAt
         
-                    # Toplam iade edilen tutar (MoneyBag tipinde)
                     totalRefundedSet {
                       shopMoney {
                         amount
@@ -85,7 +81,6 @@ class ReturnEndpoints
                       }
                     }
         
-                    # Eğer refundLineItems çekmek isterseniz (opsiyonel)
                     refundLineItems(first: 10) {
                       edges {
                         node {
@@ -102,7 +97,6 @@ class ReturnEndpoints
                 }
               }
         
-              # --- ReturnShippingFeeType (2025-01’da sadece amountSet mevcut) ---
               returnShippingFees {
                 id
                 amountSet {
@@ -117,7 +111,6 @@ class ReturnEndpoints
                 }
               }
         
-              # --- ReverseFulfillmentOrderConnection (2025-01’da en temel alanlar) ---
               reverseFulfillmentOrders(first: 50) {
                 edges {
                   node {
@@ -127,7 +120,6 @@ class ReturnEndpoints
                 }
               }
         
-              # --- ExchangeLineItemConnection (2025-01’da quantity ve variant YOK, sadece id ve lineItem) ---
               exchangeLineItems(first: 50) {
                 edges {
                   node {
@@ -140,7 +132,6 @@ class ReturnEndpoints
                 }
               }
         
-              # --- ReturnDeclineType (2025-01’da sadece reason ve note) ---
               decline {
                 reason
                 note
