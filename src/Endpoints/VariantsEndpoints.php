@@ -38,8 +38,6 @@ class VariantsEndpoints
         */
 
 
-
-
         $variant = $params['variant'];
 
 
@@ -83,7 +81,6 @@ class VariantsEndpoints
         if (!empty($variant['mediaSrc'])) {
             $variantdata['mediaSrc'] = $variant['mediaSrc'];
         }
-
 
 
         // if (!empty($variant['optionValues'])) {
@@ -145,10 +142,9 @@ class VariantsEndpoints
         }
 
 
-
         if (isset($variant['weight'])) {
 
-            $variantdata['inventoryItem']['measurement']['weight']['value'] = (float) $variant['weight'];
+            $variantdata['inventoryItem']['measurement']['weight']['value'] = (float)$variant['weight'];
             if (isset($variant['weight_unit'])) {
                 switch ($variant['weight_unit']) {
                     case 'lb':
@@ -179,7 +175,6 @@ class VariantsEndpoints
 
         $finalvariantvariables['productId'] = $productId;
         $finalvariantvariables['variants'][] = $variantdata;
-
 
 
         $variantquery = <<<'GRAPHQL'
@@ -213,9 +208,7 @@ class VariantsEndpoints
             GRAPHQL;
 
 
-
         $responseData = $this->graphqlService->graphqlQueryThalia($variantquery, $finalvariantvariables);
-        print_r($responseData);
 
         if (isset($responseData['data']['productVariantsBulkUpdate']['userErrors']) && !empty($responseData['data']['productVariantsBulkUpdate']['userErrors'])) {
 
