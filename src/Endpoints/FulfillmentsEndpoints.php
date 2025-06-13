@@ -434,7 +434,7 @@ class FulfillmentsEndpoints
                         "inventory_item_id" => str_replace("gid://shopify/InventoryItem/", "", $lineItem["inventoryItemId"]) ?? '',
                         "fulfillable_quantity" => $lineItem["remainingQuantity"] ?? '',
                         "variant_id" => str_replace("gid://shopify/ProductVariant/", "", $lineItem["variant"]["id"]) ?? '',
-                        "lineItemId" => str_replace("gid://shopify/LineItem/", "", $lineItem["lineItem"]['id']) ?? '',
+                        "lineItemId" => str_replace("gid://shopify/LineItem/", "", $lineItem["lineItem"]['id']),
                     ];
                 }
 
