@@ -98,7 +98,7 @@ class OptionEndpoints
                 }
                 product {
                   id
-                  variants(first: 10) {
+                  variants(first: 100) {
                     nodes {
                       id
                       title
