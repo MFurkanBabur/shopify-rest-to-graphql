@@ -7,10 +7,9 @@ use Thalia\ShopifyRestToGraphql\GraphqlService;
 
 class ReturnEndpoints
 {
-    private $graphqlService;
-
-    private $shopDomain;
-    private $accessToken;
+    private GraphqlService $graphqlService;
+    private string $shopDomain;
+    private string $accessToken;
 
     public function __construct(string $shopDomain = null, string $accessToken = null)
     {
@@ -24,276 +23,170 @@ class ReturnEndpoints
         $this->accessToken = $accessToken;
 
         $this->graphqlService = new GraphqlService($this->shopDomain, $this->accessToken);
-
     }
 
-    /**
-     * To get Orders use this function.
-     */
-    public function returnApproveRequest($id)
+    private function execute(string $query, array $variables, string $rootField): array
     {
-        /*
-            Graphql Reference : https://shopify.dev/docs/api/admin-graphql/2025-01/mutations/returnApproveRequest
-        */
+        $responseData = $this->graphqlService->graphqlQueryThalia($query, $variables);
 
-        $variables['input']['id'] = "gid://shopify/Return/" . $id;
+        if (!empty($responseData['errors'])) {
+            throw new GraphqlException(
+                "GraphQL errors returned from {$this->shopDomain}",
+                500,
+                $responseData['errors']
+            );
+        }
 
-        $query = <<<"GRAPHQL"
-        mutation ReturnApproveRequest(\$input: ReturnApproveRequestInput!) {
-          returnApproveRequest(input: \$input) {
+        if (!isset($responseData['data'])) {
+            throw new GraphqlException(
+                "Missing `data` key in GraphQL response from {$this->shopDomain}",
+                500,
+                []
+            );
+        }
+
+        if (!isset($responseData['data'][$rootField])) {
+            throw new GraphqlException(
+                "Missing root field `{$rootField}` in GraphQL response from {$this->shopDomain}",
+                500,
+                []
+            );
+        }
+
+        $payload = $responseData['data'][$rootField];
+
+        if (!empty($payload['userErrors'])) {
+            throw new GraphqlException(
+                "GraphQL userErrors on {$rootField}",
+                400,
+                $payload['userErrors']
+            );
+        }
+
+        return $payload;
+    }
+
+    public function returnApproveRequest(string $id): array
+    {
+        $variables = ['input' => ['id' => "gid://shopify/Return/{$id}"]];
+        $query = <<<'GRAPHQL'
+        mutation ReturnApproveRequest($input: ReturnApproveRequestInput!) {
+          returnApproveRequest(input: $input) {
             return {
               id
               name
               status
               totalQuantity
-        
-              order {
-                id
-              }
-        
               returnLineItems(first: 50) {
-                edges {
-                  node {
-                    id
-                    quantity
-                    refundableQuantity
-                    refundedQuantity
-                    returnReason
-                    returnReasonNote
-                  }
-                }
+                edges { node {
+                  id
+                  quantity
+                  refundableQuantity
+                  refundedQuantity
+                  returnReason
+                  returnReasonNote
+                }}
               }
-        
-              refunds(first: 50) {
-                edges {
-                  node {
-                    id
-                    createdAt
-        
-                    totalRefundedSet {
-                      shopMoney {
-                        amount
-                        currencyCode
-                      }
-                      presentmentMoney {
-                        amount
-                        currencyCode
-                      }
-                    }
-        
-                    refundLineItems(first: 10) {
-                      edges {
-                        node {
-                          id
-                          quantity
-                        }
-                      }
-                    }
-        
-                    staffMember {
-                      id
-                    }
-                  }
-                }
-              }
-        
-              returnShippingFees {
+              refunds(first: 50) { edges { node {
                 id
-                amountSet {
-                  shopMoney {
-                    amount
-                    currencyCode
-                  }
-                  presentmentMoney {
-                    amount
-                    currencyCode
-                  }
-                }
+                createdAt
+                totalRefundedSet { shopMoney { amount currencyCode } }
+                refundLineItems(first: 10) { edges { node { id quantity } } }
+                staffMember { id }
+              }}}
+              returnShippingFees { 
+                id 
+                amountSet { shopMoney { amount currencyCode } }
               }
-        
-              reverseFulfillmentOrders(first: 50) {
-                edges {
-                  node {
-                    id
-                    status
-                  }
-                }
-              }
-        
-              exchangeLineItems(first: 50) {
-                edges {
-                  node {
-                    id
-                    lineItem {
-                      id
-                      title
-                    }
-                  }
-                }
-              }
-        
-              decline {
-                reason
-                note
-              }
+              reverseFulfillmentOrders(first: 50) { edges { node { id status } } }
+              exchangeLineItems(first: 50) { edges { node { id lineItem { id title } } } }
+              decline { reason note }
             }
-        
-            userErrors {
-              field
-              message
-              code
-            }
+            userErrors { field message code }
           }
         }
         GRAPHQL;
 
-        $responseData = $this->graphqlService->graphqlQueryThalia($query, $variables);
-
-        if (isset($responseData['data']['returnApproveRequest']['userErrors']) && count($responseData['data']['returnApproveRequest']['userErrors']) > 0) {
-            throw new GraphqlException('GraphQL Error: ' . $this->shopDomain, 400, $responseData['data']['returnApproveRequest']['userErrors']);
-        } else {
-            return $responseData['data']['returnApproveRequest'];
-        }
+        return $this->execute($query, ['input' => $variables['input']], 'returnApproveRequest');
     }
 
-    public function refundCreate($params)
+    public function refundCreate(array $params): array
     {
-        /*
-            Graphql Reference : https://shopify.dev/docs/api/admin-graphql/2025-01/mutations/refundcreate?example=creates-a-refund
-        */
-
-        $variables['input']['orderId'] = "gid://shopify/Order/" . $params['orderId'];
-
-        $variables['input']['refundLineItems'] = [];
-        foreach ($params['lineItems'] as $value) {
-            $variables['input']['refundLineItems'][] = [
-                "lineItemId" => "gid://shopify/LineItem/" . $value['lineItemId'],
-                "quantity" => $value['quantity']
-            ];
-        }
-
-        $query = <<<"GRAPHQL"
-        mutation RefundCreate(\$input: RefundInput!) {
-          refundCreate(input: \$input) {
+        $variables = [
+            'input' => [
+                'orderId' => "gid://shopify/Order/{$params['orderId']}",
+                'refundLineItems' => array_map(fn($li) => [
+                    'lineItemId' => "gid://shopify/LineItem/{$li['lineItemId']}",
+                    'quantity'   => $li['quantity']
+                ], $params['lineItems']),
+            ]
+        ];
+        $query = <<<'GRAPHQL'
+        mutation RefundCreate($input: RefundInput!) {
+          refundCreate(input: $input) {
             refund {
               id
-              totalRefundedSet {
-                presentmentMoney {
-                  amount
-                  currencyCode
-                }
-              }
+              totalRefundedSet { presentmentMoney { amount currencyCode } }
             }
-            userErrors {
-              field
-              message
-            }
+            userErrors { field message }
           }
         }
         GRAPHQL;
 
-        $responseData = $this->graphqlService->graphqlQueryThalia($query, $variables);
-
-        if (isset($responseData['data']['refundCreate']['userErrors']) && count($responseData['data']['refundCreate']['userErrors']) > 0) {
-            throw new GraphqlException('GraphQL Error: ' . $this->shopDomain, 400, $responseData['data']['refundCreate']['userErrors']);
-        } else {
-            return $responseData['data']['refundCreate'];
-        }
+        return $this->execute($query, $variables, 'refundCreate');
     }
 
-    public function returnCancelRequest($id, $params)
+    public function returnCancelRequest(string $id, array $params): array
     {
-        /*
-            Graphql Reference : https://shopify.dev/docs/api/admin-graphql/2025-01/mutations/returnDeclineRequest
-        */
-
-        $variables['id'] = "gid://shopify/Return/" . $id;
-
-        if ($params['declineNote']) {
-            $variables['declineReason'] = $params['declineReason'] ?? 'OTHER';
-            $variables['declineNote'] = $params['declineNote'];
+        $input = ['id' => "gid://shopify/Return/{$id}", 'notifyCustomer' => $params['notifyCustomer'] ?? false];
+        if (!empty($params['declineNote'])) {
+            $input['declineReason'] = $params['declineReason'] ?? 'OTHER';
+            $input['declineNote']   = $params['declineNote'];
         }
 
-        $variables['notifyCustomer'] = $params['notifyCustomer'] ?? false;
-
-        $query = <<<"GRAPHQL"
-            mutation ReturnDeclineRequest(\$input: ReturnDeclineRequestInput!) {
-              returnDeclineRequest(input: \$input) {
-                return {
-                  id
-                  status
-                }
-                userErrors {
-                  code
-                  field
-                  message
-                }
+        $query = <<<'GRAPHQL'
+            mutation ReturnDeclineRequest($input: ReturnDeclineRequestInput!) {
+              returnDeclineRequest(input: $input) {
+                return { id status }
+                userErrors { code field message }
               }
             }
         GRAPHQL;
 
-        $responseData = $this->graphqlService->graphqlQueryThalia($query, ['input' => $variables]);
-        if (isset($responseData['data']['returnDeclineRequest']['userErrors']) && count($responseData['data']['returnDeclineRequest']['userErrors']) > 0) {
-            throw new GraphqlException('GraphQL Error: ' . $this->shopDomain, 400, $responseData['data']['returnDeclineRequest']['userErrors']);
-        } else {
-            return $responseData['data']['returnDeclineRequest'];
-        }
+        return $this->execute($query, ['input' => $input], 'returnDeclineRequest');
     }
 
-    public function returnRefund($params)
+    public function returnRefund(array $params): array
     {
-        /*
-            Graphql Reference : https://shopify.dev/docs/api/admin-graphql/2025-01/mutations/returnrefund
-        */
-
         if (empty($params['orderTransactions'])) {
             throw new \InvalidArgumentException('orderTransactions missing!');
         }
 
-        $variables['notifyCustomer'] = $params['notifyCustomer'] ?? false;
-        $variables['returnId'] = "gid://shopify/Return/" . $params['returnId'];
-
-        foreach ($params['returnRefundLineItems'] as $value) {
-            $variables['returnRefundLineItems'][] = [
-                "returnLineItemId" => "gid://shopify/ReturnLineItem/" . $value['returnLineItemId'],
-                "quantity" => $value['quantity']
-            ];
-        }
-
-        $variables['orderTransactions'] = [];
-        foreach ($params['orderTransactions'] as $as) {
-            $variables['orderTransactions'][] =[
-                'parentId' => $as['transactionId'],
+        $input = [
+            'notifyCustomer'        => $params['notifyCustomer'] ?? false,
+            'returnId'              => "gid://shopify/Return/{$params['returnId']}",
+            'returnRefundLineItems' => array_map(fn($li) => [
+                'returnLineItemId' => $li['returnLineItemId'], 
+                'quantity'         => $li['quantity']
+            ], $params['returnRefundLineItems']),
+            'orderTransactions'     => array_map(fn($ot) => [
+                'parentId'          => $ot['transactionId'],
                 'transactionAmount' => [
-                    'amount' => $as['amount'],
-                    'currencyCode' => $as['currencyCode']
-                ],
-            ];
-        }
+                    'amount'       => $ot['amount'],
+                    'currencyCode' => $ot['currencyCode']
+                ]
+            ], $params['orderTransactions']),
+        ];
 
-        $query = <<<"GRAPHQL"
-         mutation returnRefund(\$input: ReturnRefundInput!) {
-          returnRefund(returnRefundInput: \$input) {
-            refund {
-              id
-              note
-              createdAt
-            }
-            userErrors {
-              field
-              message
-              code
-            }
+        $query = <<<'GRAPHQL'
+        mutation returnRefund($input: ReturnRefundInput!) {
+          returnRefund(returnRefundInput: $input) {
+            refund { id note createdAt }
+            userErrors { field message code }
           }
         }
         GRAPHQL;
 
-        $responseData = $this->graphqlService->graphqlQueryThalia($query, ['input' => $variables]);
-
-        if (isset($responseData['data']['returnRefund']['userErrors']) && count($responseData['data']['returnRefund']['userErrors']) > 0) {
-            throw new GraphqlException('GraphQL Error: ' . $this->shopDomain, 400, $responseData['data']['returnRefund']['userErrors']);
-        } else {
-            return $responseData['data']['returnRefund'];
-        }
+        return $this->execute($query, ['input' => $input], 'returnRefund');
     }
 }
