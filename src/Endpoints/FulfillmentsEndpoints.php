@@ -453,4 +453,71 @@ class FulfillmentsEndpoints
         return $restResponse;
     }
 
+    public function getFulfillmentLineItemsByOrderId(string $orderId): array
+    {
+        $queryGetFulfillments = <<<'GRAPHQL'
+    query GetFulfillments($orderId: ID!) {
+      order(id: $orderId) {
+        fulfillments(first: 10) {
+          id
+        }
+      }
+    }
+    GRAPHQL;
+
+        $variables = [
+            'orderId' => "gid://shopify/Order/{$orderId}"
+        ];
+
+        $responseData = $this->graphqlService->graphqlQueryThalia($queryGetFulfillments, $variables);
+
+        $fulfillments = $responseData['data']['order']['fulfillments'] ?? [];
+
+        $allLineItems = [];
+
+        $queryGetFulfillmentLineItems = <<<'GRAPHQL'
+    query GetFulfillmentLineItems($fulfillmentId: ID!) {
+      fulfillment(id: $fulfillmentId) {
+        fulfillmentLineItems(first: 20) {
+          edges {
+            node {
+              id
+              lineItem {
+                id
+                name
+                quantity
+              }
+            }
+          }
+        }
+      }
+    }
+    GRAPHQL;
+
+
+        foreach ($fulfillments as $fulfillment) {
+            $fulfillmentId = $fulfillment['id'];
+
+            $variables = [
+                'fulfillmentId' => $fulfillmentId
+            ];
+
+            $lineItemsResponse = $this->graphqlService->graphqlQueryThalia($queryGetFulfillmentLineItems, $variables);
+
+            $edges = $lineItemsResponse['data']['fulfillment']['fulfillmentLineItems']['edges'] ?? [];
+
+            foreach ($edges as $edge) {
+                $node = $edge['node'];
+                $allLineItems[] = [
+                    'fulfillment_line_item_id' => str_replace('gid://shopify/FulfillmentLineItem/','', $node['id']),
+                    'line_item_id' => str_replace('gid://shopify/LineItem/', '', $node['lineItem']['id']),
+                    'name' => $node['lineItem']['name'],
+                    'quantity' => $node['lineItem']['quantity'],
+                ];
+            }
+        }
+
+        return $allLineItems;
+    }
+
 }
