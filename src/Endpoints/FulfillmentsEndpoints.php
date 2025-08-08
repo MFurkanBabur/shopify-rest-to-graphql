@@ -140,11 +140,16 @@ class FulfillmentsEndpoints
                 "url" => $params['fulfillment']['tracking_info']['url'] ?? '',
             ];
         }
-        if (isset($param['fulfillment_order_line_items'][0]['id'])){
-            $variables['fulfillment']['lineItemsByFulfillmentOrder']['fulfillmentOrderLineItems'] = [
-                "id" =>  "gid://shopify/FulfillmentOrderLineItem/" . $param['fulfillment_order_line_items'][0]['id'] ?? '',
-                "quantity" =>  $param['fulfillment_order_line_items'][0]['quantity'] ?? '',
-            ];
+        if (!empty($param['fulfillment_order_line_items'])) {
+            $variables['fulfillment']['lineItemsByFulfillmentOrder']['fulfillmentOrderLineItems'] = array_map(
+                function ($li) {
+                    return [
+                        'id'       => 'gid://shopify/FulfillmentOrderLineItem/' . $li['id'],
+                        'quantity' => (int)($li['quantity'] ?? 0),
+                    ];
+                },
+                $param['fulfillment_order_line_items']
+            );
         }
 
         $responseData = $this->graphqlService->graphqlQueryThalia($query, $variables);
